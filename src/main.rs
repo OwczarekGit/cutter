@@ -1,17 +1,26 @@
 use std::{error::Error, process::Command};
 
+use clap::Parser;
+
+
+#[derive(Debug, Parser, Clone)]
+struct Config {
+    input: String,
+    timestamps: Vec<String>,
+}
 
 
 fn main() {
+    let config: Config = Config::parse();
+    println!("{config:?}");
 
-    let ts1 = TimeStamp::from_str("00:00:10.0000").unwrap();
-    let ts2 = TimeStamp::from_str("00:00:20.0000").unwrap();
+    let timestamps = config.timestamps.into_iter()
+    .map(|s|{
+        TimeStamp::from_str(s.as_str()).expect("Invalid timestamp")
+    }).collect();
 
-    let mut cutter = Cutter::new(String::from("audio.mp3"), vec![ts1, ts2]);
-    cutter.next();
-    cutter.next();
-    cutter.next();
-
+    let mut cutter = Cutter::new(config.input, timestamps);
+    while let Some(_) = cutter.next() {}
 }
 
 
@@ -61,14 +70,14 @@ impl Cutter {
                 output
             ]);
 
-            println!("{cmd:?}");
+            // println!("{cmd:?}");
             cmd.output()?;
             
             Ok(())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct TimeStamp{
     hour:   u32,
     minute: u32,
@@ -85,75 +94,155 @@ impl TimeStamp {
     pub fn from_str(input: &str) -> Result<Self, Box<dyn Error>>{
 
         let mut split = input.split(".");
-        let t1 = split.next().ok_or("")?;
-        let ms = split.next().ok_or("0000")?;
+        let t1 = split.next().ok_or("00:00:00")?;
 
-        let milis: u32 = ms.parse()?;
+        let milis = if let Some(ms) = split.next(){
+            ms
+        } else {
+            "0"
+        };
+
         let mut split2 = t1.split(":");
 
-        let hour = if let Some(v1) = split2.next() {
-            v1.parse::<u32>()?
-        } else{
-            0u32
-        };
-        
-        let minute = if let Some(v1) = split2.next() {
-            v1.parse::<u32>()?
-        } else{
-            0u32
-        };
-        
-        let second = if let Some(v1) = split2.next() {
-            v1.parse::<u32>()?
-        } else{
-            0u32
+        let mut hoursField = split2.next();
+        let mut minutesField = split2.next();
+        let mut secondsField = split2.next();
+
+
+        println!("HF: {hoursField:?}");
+        println!("MF: {minutesField:?}");
+        println!("SF: {secondsField:?}");
+
+        let mut hour = "0";
+        let mut minute = "0";
+        let mut second = "0";
+
+        if hoursField.is_none() {
+            if minutesField.is_none() {
+                second = secondsField.ok_or("00")?;
+            } else {
+                minute = minutesField.ok_or("00")?;
+                second = secondsField.ok_or("00")?;
+            }
+        } else {
+            if minutesField.is_none() {
+                second = hoursField.ok_or("00")?;
+            } else {
+                if secondsField.is_none() {
+                    minute = hoursField.ok_or("00")?;
+                    second = minutesField.ok_or("00")?;
+                } else {
+                    hour = hoursField.ok_or("00")?;
+                    minute = minutesField.ok_or("00")?;
+                    second = secondsField.ok_or("00")?;
+                }
+            }
+        }
+
+        println!("HOUR: {hour:?}");
+        println!("MIN: {minute:?}");
+        println!("SEC: {second:?}");
+        println!("MS: {milis:?}");
+
+        let r = Self {
+            hour: hour.parse::<u32>()?,
+            minute: minute.parse::<u32>()?,
+            second: second.parse::<u32>()?,
+            milis: milis.parse::<u32>()?,
         };
 
-        Ok(Self { 
-            hour,
-            minute,
-            second,
-            milis
-        })
+        Ok(r)
     }
 }
 
+
 #[test]
-fn parse_correctly_from_string(){
-    let input = "01:02:52.0123";
-    
+fn parse_correctly_from_seconds_and_millis_only(){
+    let input = "20.0342";
+
     let ts = TimeStamp::from_str(input);
 
     assert!(ts.is_ok());
     let ts = ts.unwrap();
 
-    assert_eq!(ts.hour, 1u32);
-    assert_eq!(ts.minute, 2u32);
-    assert_eq!(ts.second, 52u32);
-    assert_eq!(ts.milis, 123u32);
+    assert_eq!(ts.hour, 0u32);
+    assert_eq!(ts.minute, 0u32);
+    assert_eq!(ts.second, 20u32);
+    assert_eq!(ts.milis, 342u32);
 }
 
-#[test]
-fn parse_incorrectly_from_string(){
-    let input = "0q1:02e:52f.012s3";
-    
-    let ts = TimeStamp::from_str(input);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert!(ts.is_err());
-}
+    #[test]
+    fn parse_correctly_from_seconds_only(){
+        let input = "20";
 
-#[test]
-fn parse_incorrectly_from_partially_valid_string(){
-    let input = "02:32.1234";
-    
-    let ts = Timestamp::from_str(input);
+        let ts = TimeStamp::from_str(input);
 
-    assert!(ts.is_ok());
+        assert!(ts.is_ok());
+        let ts = ts.unwrap();
 
-    let ts = ts.unwrap();
+        assert_eq!(ts.hour, 0u32);
+        assert_eq!(ts.minute, 0u32);
+        assert_eq!(ts.second, 20u32);
+        assert_eq!(ts.milis, 0u32);
+    }
 
-    assert_eq!(ts.hour, 2);
-    assert_eq!(ts.minute, 32);
-    assert_eq!(ts.second, 0);
-    assert_eq!(ts.milis, 1234);
+    #[test]
+    fn parse_correctly_from_string(){
+        let input = "01:02:52.0123";
+
+        let ts = TimeStamp::from_str(input);
+
+        assert!(ts.is_ok());
+        let ts = ts.unwrap();
+
+        assert_eq!(ts.hour, 1u32);
+        assert_eq!(ts.minute, 2u32);
+        assert_eq!(ts.second, 52u32);
+        assert_eq!(ts.milis, 123u32);
+    }
+
+    #[test]
+    fn parse_incorrectly_from_string(){
+        let input = "0q1:02e:52f.012s3";
+
+        let ts = TimeStamp::from_str(input);
+
+        assert!(ts.is_err());
+    }
+
+    #[test]
+    fn parse_correctly_from_valid_string_without_hours(){
+        let input = "02:32.1234";
+
+        let ts = TimeStamp::from_str(input);
+
+        assert!(ts.is_ok());
+
+        let ts = ts.unwrap();
+
+        assert_eq!(ts.hour, 0);
+        assert_eq!(ts.minute, 2);
+        assert_eq!(ts.second, 32);
+        assert_eq!(ts.milis, 1234);
+    }
+
+    #[test]
+    fn parse_correctly_from_valid_string_without_millis(){
+        let input = "01:02:32";
+
+        let ts = TimeStamp::from_str(input);
+
+        assert!(ts.is_ok());
+
+        let ts = ts.unwrap();
+
+        assert_eq!(ts.hour, 1);
+        assert_eq!(ts.minute, 2);
+        assert_eq!(ts.second, 32);
+        assert_eq!(ts.milis, 0);
+    }
 }
