@@ -113,37 +113,37 @@ impl TimeStamp {
 
         let mut split2 = t1.split(":");
 
-        let mut hoursField = split2.next();
-        let mut minutesField = split2.next();
-        let mut secondsField = split2.next();
+        let hours_field = split2.next();
+        let minutes_field = split2.next();
+        let seconds_field = split2.next();
 
 
-        // println!("HF: {hoursField:?}");
-        // println!("MF: {minutesField:?}");
-        // println!("SF: {secondsField:?}");
+        // println!("HF: {hours_field:?}");
+        // println!("MF: {minutes_field:?}");
+        // println!("SF: {seconds_field:?}");
 
         let mut hour = "0";
         let mut minute = "0";
         let mut second = "0";
 
-        if hoursField.is_none() {
-            if minutesField.is_none() {
-                second = secondsField.ok_or("00")?;
+        if hours_field.is_none() {
+            if minutes_field.is_none() {
+                second = seconds_field.ok_or("00")?;
             } else {
-                minute = minutesField.ok_or("00")?;
-                second = secondsField.ok_or("00")?;
+                minute = minutes_field.ok_or("00")?;
+                second = seconds_field.ok_or("00")?;
             }
         } else {
-            if minutesField.is_none() {
-                second = hoursField.ok_or("00")?;
+            if minutes_field.is_none() {
+                second = hours_field.ok_or("00")?;
             } else {
-                if secondsField.is_none() {
-                    minute = hoursField.ok_or("00")?;
-                    second = minutesField.ok_or("00")?;
+                if seconds_field.is_none() {
+                    minute = hours_field.ok_or("00")?;
+                    second = minutes_field.ok_or("00")?;
                 } else {
-                    hour = hoursField.ok_or("00")?;
-                    minute = minutesField.ok_or("00")?;
-                    second = secondsField.ok_or("00")?;
+                    hour = hours_field.ok_or("00")?;
+                    minute = minutes_field.ok_or("00")?;
+                    second = seconds_field.ok_or("00")?;
                 }
             }
         }
