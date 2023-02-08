@@ -1,4 +1,5 @@
 use std::{error::Error, process::Command};
+use std::cmp::Ordering;
 
 use clap::Parser;
 
@@ -9,21 +10,29 @@ struct Config {
     timestamps: Vec<String>,
 }
 
-
 fn main() {
     let config: Config = Config::parse();
-    println!("{config:?}");
+    // println!("{config:?}");
 
-    let timestamps = config.timestamps.into_iter()
+    let mut timestamps: Vec<TimeStamp> = config.timestamps.into_iter()
     .map(|s|{
         TimeStamp::from_str(s.as_str()).expect("Invalid timestamp")
     }).collect();
 
+    timestamps.sort_by(|a,b| {
+        let a_secs: f32 = (a.second + (a.minute * 60) + (a.hour * 60 * 60)) as f32 + (a.millis as f32 * 0.001);
+        let b_secs: f32 = (b.second + (b.minute * 60) + (b.hour * 60 * 60)) as f32 + (b.millis as f32 * 0.001);
+
+        return if a_secs > b_secs {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        }
+    });
+
     let mut cutter = Cutter::new(config.input, timestamps);
     while let Some(_) = cutter.next() {}
 }
-
-
 
 impl Iterator for Cutter {
     type Item = ();
@@ -70,8 +79,8 @@ impl Cutter {
                 output
             ]);
 
-            // println!("{cmd:?}");
-            cmd.output()?;
+            println!("{cmd:?}");
+            // cmd.output()?;
             
             Ok(())
     }
@@ -82,13 +91,13 @@ struct TimeStamp{
     hour:   u32,
     minute: u32,
     second: u32,
-    milis:  u32,
+    millis:  u32,
 }
 
 impl TimeStamp {
 
     pub fn get(&self) -> String {
-        format!("{}:{}:{}.{}", self.hour, self.minute, self.second, self.milis)
+        format!("{}:{}:{}.{}", self.hour, self.minute, self.second, self.millis)
     }
 
     pub fn from_str(input: &str) -> Result<Self, Box<dyn Error>>{
@@ -96,7 +105,7 @@ impl TimeStamp {
         let mut split = input.split(".");
         let t1 = split.next().ok_or("00:00:00")?;
 
-        let milis = if let Some(ms) = split.next(){
+        let millis = if let Some(ms) = split.next(){
             ms
         } else {
             "0"
@@ -109,9 +118,9 @@ impl TimeStamp {
         let mut secondsField = split2.next();
 
 
-        println!("HF: {hoursField:?}");
-        println!("MF: {minutesField:?}");
-        println!("SF: {secondsField:?}");
+        // println!("HF: {hoursField:?}");
+        // println!("MF: {minutesField:?}");
+        // println!("SF: {secondsField:?}");
 
         let mut hour = "0";
         let mut minute = "0";
@@ -139,16 +148,16 @@ impl TimeStamp {
             }
         }
 
-        println!("HOUR: {hour:?}");
-        println!("MIN: {minute:?}");
-        println!("SEC: {second:?}");
-        println!("MS: {milis:?}");
+        // println!("HOUR: {hour:?}");
+        // println!("MIN: {minute:?}");
+        // println!("SEC: {second:?}");
+        // println!("MS: {milis:?}");
 
         let r = Self {
             hour: hour.parse::<u32>()?,
             minute: minute.parse::<u32>()?,
             second: second.parse::<u32>()?,
-            milis: milis.parse::<u32>()?,
+            millis: millis.parse::<u32>()?,
         };
 
         Ok(r)
@@ -168,7 +177,7 @@ fn parse_correctly_from_seconds_and_millis_only(){
     assert_eq!(ts.hour, 0u32);
     assert_eq!(ts.minute, 0u32);
     assert_eq!(ts.second, 20u32);
-    assert_eq!(ts.milis, 342u32);
+    assert_eq!(ts.millis, 342u32);
 }
 
 #[cfg(test)]
@@ -187,7 +196,7 @@ mod tests {
         assert_eq!(ts.hour, 0u32);
         assert_eq!(ts.minute, 0u32);
         assert_eq!(ts.second, 20u32);
-        assert_eq!(ts.milis, 0u32);
+        assert_eq!(ts.millis, 0u32);
     }
 
     #[test]
@@ -202,7 +211,22 @@ mod tests {
         assert_eq!(ts.hour, 1u32);
         assert_eq!(ts.minute, 2u32);
         assert_eq!(ts.second, 52u32);
-        assert_eq!(ts.milis, 123u32);
+        assert_eq!(ts.millis, 123u32);
+    }
+
+    #[test]
+    fn parse_correctly_from_string_without_leading_zeros(){
+        let input = "4:1:12.23";
+
+        let ts = TimeStamp::from_str(input);
+
+        assert!(ts.is_ok());
+        let ts = ts.unwrap();
+
+        assert_eq!(ts.hour, 4u32);
+        assert_eq!(ts.minute, 1u32);
+        assert_eq!(ts.second, 12u32);
+        assert_eq!(ts.millis, 23u32);
     }
 
     #[test]
@@ -227,7 +251,7 @@ mod tests {
         assert_eq!(ts.hour, 0);
         assert_eq!(ts.minute, 2);
         assert_eq!(ts.second, 32);
-        assert_eq!(ts.milis, 1234);
+        assert_eq!(ts.millis, 1234);
     }
 
     #[test]
@@ -243,6 +267,6 @@ mod tests {
         assert_eq!(ts.hour, 1);
         assert_eq!(ts.minute, 2);
         assert_eq!(ts.second, 32);
-        assert_eq!(ts.milis, 0);
+        assert_eq!(ts.millis, 0);
     }
 }
