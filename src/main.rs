@@ -5,8 +5,9 @@ use clap::Parser;
 
 
 #[derive(Debug, Parser, Clone)]
-struct Config {
+pub struct Config {
     input: String,
+    extension: String,
     timestamps: Vec<String>,
 }
 
@@ -30,7 +31,7 @@ fn main() {
         }
     });
 
-    let mut cutter = Cutter::new(config.input, timestamps);
+    let mut cutter = Cutter::new(config.input, timestamps, config.extension);
     while let Some(_) = cutter.next() {}
 }
 
@@ -44,7 +45,7 @@ impl Iterator for Cutter {
                 self.input.as_str(),
                 self.prev.as_str(),
                 &next.get(),
-                format!("{}.mp3", self.index).as_str()
+                format!("{}.{}", self.index, self.extension).as_str()
             ).unwrap();
 
             self.prev = next.get();
@@ -53,21 +54,28 @@ impl Iterator for Cutter {
             return Some(());
         }
 
+        Self::extract_part_to_end(
+            self.input.as_str(),
+            self.prev.as_str(),
+            format!("{}.{}", self.index, self.extension).as_str()
+        ).unwrap();
+
         None
     }
 }
 
 #[derive(Debug)]
-struct Cutter {
+pub struct Cutter {
     timestamps: Vec<TimeStamp>,
     index: u32,
+    extension: String,
     input: String,
     prev: String
 }
 
 impl Cutter {
-    fn new(input: String, timestamps: Vec<TimeStamp>) -> Self {
-        Self { input, timestamps, index: 1u32, prev: String::from("00:00:00.0000") }
+    fn new(input: String, timestamps: Vec<TimeStamp>, extension: String) -> Self {
+        Self { input, timestamps, index: 1u32, prev: String::from("00:00:00.0000"), extension }
     }
 
     fn extract_part(input: &str, from: &str, to: &str, output: &str) -> Result<(), Box<dyn Error>>{
@@ -80,14 +88,28 @@ impl Cutter {
             ]);
 
             println!("{cmd:?}");
-            // cmd.output()?;
+            cmd.output()?;
             
             Ok(())
+    }
+
+    fn extract_part_to_end(input: &str, from: &str, output: &str) -> Result<(), Box<dyn Error>>{
+        let mut cmd = Command::new("ffmpeg");
+        cmd.args([
+            "-ss", from,
+            "-i", input,
+            output
+        ]);
+
+        println!("{cmd:?}");
+        cmd.output()?;
+        
+        Ok(())
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-struct TimeStamp{
+pub struct TimeStamp{
     hour:   u32,
     minute: u32,
     second: u32,
@@ -96,6 +118,14 @@ struct TimeStamp{
 
 impl TimeStamp {
 
+    /// Returns timestamp in format HH:MM:SS.MS trimming leading zeros.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let x = TimeStamp::from_str("00:21:37.0123");
+    /// assert_eq!(x.get(), "0:21:37.123");
+    /// ```
     pub fn get(&self) -> String {
         format!("{}:{}:{}.{}", self.hour, self.minute, self.second, self.millis)
     }
